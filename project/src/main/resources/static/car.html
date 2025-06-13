@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý Xe</title>
+    <style>
+        table { border-collapse: collapse; width: 95%; margin: 24px auto; }
+        th, td { border: 1px solid #aaa; padding: 8px; text-align: center; }
+        button { margin: 0 4px; }
+        input { width: 95%; }
+        #alert { color: red; text-align: center; margin: 10px; font-weight: bold; }
+
+        .header-row {
+            display: flex;
+            align-items: center;
+            width: 95%;
+            margin: 0 auto 12px auto;
+        }
+
+    </style>
+</head>
+<body>
+<h2 style="text-align:center">DANH SÁCH XE</h2>
+
+<div class="header-row">
+    <div style="flex:1; text-align:left;">
+        <button class="back-btn" onclick="window.location.href='/manager'">← Quay về trang quản lý</button>
+    </div>
+    <div style="flex:1; text-align:center;">
+        <button class="add-btn" onclick="addCarRow()">+ Thêm Xe mới</button>
+    </div>
+    <div style="flex:1;"></div>
+</div>
+
+<div id="alert"></div>
+<table id="carTable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Biển số</th>
+        <th>Model</th>
+        <th>Năm SX</th>
+        <th>Màu</th>
+        <th>Ngày mua</th>
+        <th>Chủ xe</th>
+        <th>SĐT chủ xe</th>
+        <th>Hãng xe</th>
+        <th>Hành động</th>
+    </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+<script>
+    const apiBase = "/cars";
+    let editingRow = null; // id hoặc 'new'
+
+    function showError(message) {
+        document.getElementById("alert").textContent = message;
+        if (message) setTimeout(() => {
+            document.getElementById("alert").textContent = "";
+        }, 4000);
+    }
+
+    function loadCars() {
+        fetch(apiBase)
+            .then(res => res.json())
+            .then(data => renderTable(data))
+            .catch(() => showError("Không thể tải dữ liệu từ server!"));
+    }
+
+    function renderTable(cars) {
+        const tbody = document.querySelector("#carTable tbody");
+        tbody.innerHTML = "";
+
+        cars.forEach(car => {
+            if (editingRow === car.id) {
+                tbody.innerHTML += editRowHTML(car);
+            } else {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${car.id ?? ""}</td>
+                        <td>${car.licensePlate ?? ""}</td>
+                        <td>${car.model ?? ""}</td>
+                        <td>${car.year ?? ""}</td>
+                        <td>${car.color ?? ""}</td>
+                        <td>${car.purchaseDate ? car.purchaseDate.substring(0,10) : ""}</td>
+                        <td>${car.ownerName ?? ""}</td>
+                        <td>${car.ownerPhone ?? ""}</td>
+                        <td>${car.brandName ?? ""}</td>
+                        <td>
+                            <button onclick="editCar(${car.id})">Cập nhật</button>
+                            <button onclick="deleteCar(${car.id})">Xóa</button>
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+
+        // Nếu đang thêm mới
+        if (editingRow === 'new') {
+            tbody.innerHTML += editRowHTML({
+                id: '',
+                licensePlate: '',
+                model: '',
+                year: '',
+                color: '',
+                purchaseDate: '',
+                ownerName: '',
+                ownerPhone: '',
+                brandName: ''
+            }, true);
+        }
+    }
+
+    function editRowHTML(car, isNew = false) {
+        return `
+            <tr>
+                <td>${isNew ? "" : (car.id ?? "")}</td>
+                <td><input type="text" id="editLicensePlate" value="${car.licensePlate ?? ""}"></td>
+                <td><input type="text" id="editModel" value="${car.model ?? ""}"></td>
+                <td><input type="text" id="editYear" value="${car.year ?? ""}"></td>
+                <td><input type="text" id="editColor" value="${car.color ?? ""}"></td>
+                <td><input type="date" id="editPurchaseDate" value="${car.purchaseDate ? car.purchaseDate.substring(0,10) : ""}"></td>
+                <td><span>${car.ownerName ?? ""}</span></td>
+                <td><input type="text" id="editOwnerPhone" value="${car.ownerPhone ?? ""}"></td>
+                <td><input type="text" id="editBrandName" value="${car.brandName ?? ""}"></td>
+                <td>
+                    <button onclick="${isNew ? "saveNewCar()" : "saveCar("+car.id+")"}">Lưu</button>
+                    <button onclick="cancelEdit()">Hủy</button>
+                </td>
+            </tr>
+        `;
+    }
+
+    function editCar(id) {
+        editingRow = id;
+        loadCars();
+    }
+
+    function cancelEdit() {
+        editingRow = null;
+        loadCars();
+    }
+
+    function saveCar(id) {
+        const carData = {
+            licensePlate: document.getElementById("editLicensePlate").value.trim(),
+            model: document.getElementById("editModel").value.trim(),
+            year: document.getElementById("editYear").value.trim(),
+            color: document.getElementById("editColor").value.trim(),
+            purchaseDate: document.getElementById("editPurchaseDate").value,
+            ownerName: getOwnerNameFromTable(),
+            ownerPhone: document.getElementById("editOwnerPhone").value.trim(),
+            brandName: document.getElementById("editBrandName").value.trim()
+        };
+        if (!carData.licensePlate || !carData.model || !carData.year || !carData.color || !carData.purchaseDate || !carData.ownerPhone || !carData.brandName) {
+            showError("Vui lòng điền đầy đủ thông tin!");
+            return;
+        }
+        fetch(`${apiBase}/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(carData)
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    const text = await response.text();
+                    showError(text || "Có lỗi xảy ra khi cập nhật!");
+                } else {
+                    editingRow = null;
+                    loadCars();
+                }
+            })
+            .catch(() => showError("Không kết nối được đến server!"));
+    }
+
+    function getOwnerNameFromTable() {
+        const span = document.querySelector("#carTable tbody tr td span");
+        return span ? span.textContent.trim() : "";
+    }
+
+    function saveNewCar() {
+        const carData = {
+            licensePlate: document.getElementById("editLicensePlate").value.trim(),
+            model: document.getElementById("editModel").value.trim(),
+            year: document.getElementById("editYear").value.trim(),
+            color: document.getElementById("editColor").value.trim(),
+            purchaseDate: document.getElementById("editPurchaseDate").value,
+            ownerName: "", // luôn là rỗng khi thêm mới, backend có thể tự set hoặc trả về sau khi tạo
+            ownerPhone: document.getElementById("editOwnerPhone").value.trim(),
+            brandName: document.getElementById("editBrandName").value.trim()
+        };
+        if (!carData.licensePlate || !carData.model || !carData.year || !carData.color || !carData.purchaseDate || !carData.ownerPhone || !carData.brandName) {
+            showError("Vui lòng điền đầy đủ thông tin!");
+            return;
+        }
+        fetch(apiBase, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(carData)
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    const text = await response.text();
+                    showError(text || "Có lỗi xảy ra khi thêm mới!");
+                } else {
+                    editingRow = null;
+                    loadCars();
+                }
+            })
+            .catch(() => showError("Không kết nối được đến server!"));
+    }
+
+    function addCarRow() {
+        if (editingRow) return;
+        editingRow = 'new';
+        loadCars();
+    }
+
+    function deleteCar(id) {
+        if (confirm("Bạn chắc chắn muốn xóa xe này?")) {
+            fetch(`${apiBase}/${id}`, {
+                method: "DELETE"
+            }).then(() => loadCars());
+        }
+    }
+
+    // Khởi động
+    loadCars();
+</script>
+</body>
+</html>

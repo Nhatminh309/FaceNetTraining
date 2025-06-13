@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Quản lý Chủ xe (Owner)</title>
+  <style>
+    table { border-collapse: collapse; width: 90%; margin: 24px auto; }
+    th, td { border: 1px solid #aaa; padding: 8px; text-align: center; }
+    button { margin: 0 4px; }
+    input, select { width: 95%; }
+    #alert { color: red; text-align: center; margin: 10px; font-weight: bold; }
+    #ownerForm { display: none; border: 1px solid #aaa; width: 32%; margin: 20px auto; padding: 16px; background: #fafbfc; border-radius: 8px;}
+    #ownerForm label { display: block; margin-top: 10px;}
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      width: 95%;
+      margin: 0 auto 12px auto;
+    }
+
+  </style>
+</head>
+<body>
+<h2 style="text-align:center">DANH SÁCH CHỦ XE</h2>
+
+<div class="header-row">
+  <div style="flex:1; text-align:left;">
+    <button class="back-btn" onclick="window.location.href='/manager'">← Quay về trang quản lý</button>
+  </div>
+  <div style="flex:1; text-align:center;">
+    <button class="add-btn" onclick="showOwnerForm()">+ Thêm Chủ xe mới</button>
+  </div>
+  <div style="flex:1;"></div>
+</div>
+
+<div id="alert"></div>
+
+<!-- FORM THÊM/SỬA CHỦ XE -->
+<form id="ownerForm" onsubmit="event.preventDefault();submitOwner();">
+  <h3 id="formTitle">Thêm Chủ xe mới</h3>
+  <label>Họ tên: <input type="text" id="ownerName" required></label>
+  <label>Số điện thoại: <input type="text" id="ownerPhone" required></label>
+  <label>Email: <input type="email" id="ownerEmail" required></label>
+  <label>Địa chỉ: <input type="text" id="ownerAddress" required></label>
+  <label>Ngày sinh: <input type="date" id="ownerDateOfBirth" required></label>
+  <label>Giới tính:
+    <select id="ownerGender" required>
+      <option value="">-- Chọn giới tính --</option>
+      <option value="Nam">Nam</option>
+      <option value="Nữ">Nữ</option>
+      <option value="Khác">Khác</option>
+    </select>
+  </label>
+  <input type="hidden" id="editOwnerId">
+  <button type="submit">Lưu</button>
+  <button type="button" onclick="hideOwnerForm()">Hủy</button>
+</form>
+
+<table id="ownerTable">
+  <thead>
+  <tr>
+    <th>Họ tên</th>
+    <th>SĐT</th>
+    <th>Email</th>
+    <th>Địa chỉ</th>
+    <th>Ngày sinh</th>
+    <th>Giới tính</th>
+    <th>Hành động</th>
+  </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+<script>
+  const apiBase = "/owners";
+  let editingOwner = null; // id đang sửa
+
+  function showError(message) {
+    document.getElementById("alert").textContent = message;
+    if (message) setTimeout(() => {
+      document.getElementById("alert").textContent = "";
+    }, 4000);
+  }
+
+  function loadOwners() {
+    fetch(apiBase)
+            .then(res => res.json())
+            .then(data => renderTable(data))
+            .catch(() => showError("Không thể tải dữ liệu từ server!"));
+  }
+
+  function renderTable(owners) {
+    const tbody = document.querySelector("#ownerTable tbody");
+    tbody.innerHTML = "";
+
+    owners.forEach((owner, idx) => {
+      tbody.innerHTML += `
+                <tr>
+                    <td>${owner.name}</td>
+                    <td>${owner.phone}</td>
+                    <td>${owner.email}</td>
+                    <td>${owner.address}</td>
+                    <td>${owner.dateOfBirth ? owner.dateOfBirth.substring(0,10) : ""}</td>
+                    <td>${owner.gender ?? ""}</td>
+                    <td>
+                        <button onclick="editOwner('${encodeURIComponent(JSON.stringify(owner))}')">Cập nhật</button>
+                        <button onclick="deleteOwner('${owner.id ?? ""}')">Xóa</button>
+                    </td>
+                </tr>
+            `;
+    });
+  }
+
+  function showOwnerForm(edit = false) {
+    document.getElementById("ownerForm").reset && document.getElementById("ownerForm").reset();
+    document.getElementById("ownerForm").style.display = "block";
+    document.getElementById("formTitle").textContent = edit ? "Cập nhật Chủ xe" : "Thêm Chủ xe mới";
+    if (!edit) {
+      document.getElementById("editOwnerId").value = "";
+    }
+  }
+
+  function hideOwnerForm() {
+    document.getElementById("ownerForm").style.display = "none";
+    editingOwner = null;
+  }
+
+  function submitOwner() {
+    const name = document.getElementById("ownerName").value.trim();
+    const phone = document.getElementById("ownerPhone").value.trim();
+    const email = document.getElementById("ownerEmail").value.trim();
+    const address = document.getElementById("ownerAddress").value.trim();
+    const dateOfBirth = document.getElementById("ownerDateOfBirth").value;
+    const gender = document.getElementById("ownerGender").value;
+
+    // Validate FE
+    if (!name || !phone || !email || !address || !dateOfBirth || !gender) {
+      showError("Vui lòng điền đầy đủ thông tin!");
+      return;
+    }
+    if (name.length < 2 || name.length > 20) {
+      showError("Họ tên phải từ 2 đến 20 ký tự!");
+      return;
+    }
+
+    const ownerData = { name, phone, email, address, dateOfBirth, gender };
+
+    if (editingOwner && editingOwner.id) {
+      fetch(`${apiBase}/${editingOwner.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ownerData)
+      })
+              .then(async (response) => {
+                if (!response.ok) {
+                  const text = await response.text();
+                  showError(text || "Có lỗi xảy ra khi cập nhật!");
+                } else {
+                  hideOwnerForm();
+                  loadOwners();
+                }
+              })
+              .catch(() => {
+                showError("Không kết nối được đến server!");
+              });
+    } else {
+      fetch(apiBase, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ownerData)
+      })
+              .then(async (response) => {
+                if (!response.ok) {
+                  const text = await response.text();
+                  showError(text || "Có lỗi xảy ra khi thêm mới!");
+                } else {
+                  hideOwnerForm();
+                  loadOwners();
+                }
+              })
+              .catch(() => {
+                showError("Không kết nối được đến server!");
+              });
+    }
+  }
+
+  function editOwner(ownerJson) {
+    const owner = JSON.parse(decodeURIComponent(ownerJson));
+    editingOwner = owner;
+    showOwnerForm(true);
+    document.getElementById("ownerName").value = owner.name ?? "";
+    document.getElementById("ownerPhone").value = owner.phone ?? "";
+    document.getElementById("ownerEmail").value = owner.email ?? "";
+    document.getElementById("ownerAddress").value = owner.address ?? "";
+    document.getElementById("ownerDateOfBirth").value = owner.dateOfBirth ? owner.dateOfBirth.substring(0,10) : "";
+    document.getElementById("ownerGender").value = owner.gender ?? "";
+    document.getElementById("editOwnerId").value = owner.id ?? "";
+  }
+
+  function deleteOwner(id) {
+    if (!id) { showError("Không tìm thấy ID chủ xe!"); return; }
+    if (confirm("Bạn chắc chắn muốn xóa chủ xe này?")) {
+      fetch(`${apiBase}/${id}`, {
+        method: "DELETE"
+      }).then(() => loadOwners());
+    }
+  }
+
+  // Khởi động
+  loadOwners();
+</script>
+</body>
+</html>

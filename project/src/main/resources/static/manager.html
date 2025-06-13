@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Trang quản lý hệ thống</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f8f9fa; }
+    .container { text-align: center; margin-top: 70px; }
+    .menu-btn {
+      padding: 18px 36px;
+      margin: 20px 0;
+      font-size: 19px;
+      border: none;
+      border-radius: 8px;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .menu-btn:hover { background: #0056b3; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>QUẢN LÝ HỆ THỐNG</h2>
+  <button class="menu-btn" onclick="window.location.href='/brand'">Brand Management</button>
+  <button class="menu-btn" onclick="window.location.href='/owner'">Owner Management</button>
+  <button class="menu-btn" onclick="window.location.href='/car'">Car Management</button>
+</div>
+</body>
+</html>

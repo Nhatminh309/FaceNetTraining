@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý Brand</title>
+    <style>
+        table { border-collapse: collapse; width: 95%; margin: 24px auto; }
+        th, td { border: 1px solid #aaa; padding: 8px; text-align: center; }
+        button { margin: 0 4px; }
+        input, textarea { width: 95%; }
+        #alert { color: red; text-align: center; margin: 10px; font-weight: bold; }
+
+        .header-row {
+            display: flex;
+            align-items: center;
+            width: 95%;
+            margin: 0 auto 12px auto;
+        }
+
+    </style>
+</head>
+<body>
+<h2 style="text-align:center">DANH SÁCH BRAND</h2>
+
+<div class="header-row">
+    <div style="flex:1; text-align:left;">
+        <button class="back-btn" onclick="window.location.href='/manager'">← Quay về trang quản lý</button>
+    </div>
+    <div style="flex:1; text-align:center;">
+        <button class="add-btn" onclick="addBrandRow()">+ Thêm Brand mới</button>
+    </div>
+    <div style="flex:1;"></div>
+</div>
+
+
+
+<div id="alert"></div>
+<table id="brandTable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Tên Brand</th>
+        <th>Quốc gia</th>
+        <th>Năm thành lập</th>
+        <th>Trụ sở</th>
+        <th>Website</th>
+        <th>Mô tả</th>
+        <th>Hành động</th>
+    </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+<script>
+    const apiBase = "/brands";
+    let editingRow = null; // id hoặc 'new'
+
+    function showError(message) {
+        document.getElementById("alert").textContent = message;
+        if (message) {
+            setTimeout(() => {
+                document.getElementById("alert").textContent = "";
+            }, 4000); // Ẩn sau 4 giây
+        }
+    }
+
+    function loadBrands() {
+        fetch(apiBase)
+            .then(res => res.json())
+            .then(data => renderTable(data))
+            .catch(() => showError("Không thể tải dữ liệu từ server!"));
+    }
+
+    function renderTable(brands) {
+        const tbody = document.querySelector("#brandTable tbody");
+        tbody.innerHTML = "";
+
+        brands.forEach(brand => {
+            if (editingRow === brand.id) {
+                // Hiển thị dòng đang sửa
+                tbody.innerHTML += editRowHTML(brand);
+            } else {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${brand.id}</td>
+                        <td>${brand.name}</td>
+                        <td>${brand.country}</td>
+                        <td>${brand.yearFounded}</td>
+                        <td>${brand.headquarters}</td>
+                        <td><a href="${brand.website}" target="_blank">${brand.website}</a></td>
+                        <td>${brand.description}</td>
+                        <td>
+                            <button onclick="editBrand(${brand.id})">Cập nhật</button>
+                            <button onclick="deleteBrand(${brand.id})">Xóa</button>
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+
+        // Nếu đang thêm mới
+        if (editingRow === 'new') {
+            tbody.innerHTML += editRowHTML({
+                id: '',
+                name: '',
+                country: '',
+                yearFounded: '',
+                headquarters: '',
+                website: '',
+                description: ''
+            }, true);
+        }
+    }
+
+    function editRowHTML(brand, isNew = false) {
+        return `
+            <tr>
+                <td>${isNew ? "" : brand.id}</td>
+                <td><input type="text" id="editName" value="${brand.name ?? ""}"></td>
+                <td><input type="text" id="editCountry" value="${brand.country ?? ""}"></td>
+                <td><input type="number" id="editYear" value="${brand.yearFounded ?? ""}"></td>
+                <td><input type="text" id="editHQ" value="${brand.headquarters ?? ""}"></td>
+                <td><input type="text" id="editWeb" value="${brand.website ?? ""}"></td>
+                <td><textarea id="editDesc">${brand.description ?? ""}</textarea></td>
+                <td>
+                    <button onclick="${isNew ? "saveNewBrand()" : "saveBrand(" + brand.id + ")"}">Lưu</button>
+                    <button onclick="cancelEdit()">Hủy</button>
+                </td>
+            </tr>
+        `;
+    }
+
+    function editBrand(id) {
+        editingRow = id;
+        loadBrands();
+    }
+
+    function cancelEdit() {
+        editingRow = null;
+        loadBrands();
+    }
+
+    function saveBrand(id) {
+        const brandData = {
+            name: document.getElementById("editName").value.trim(),
+            country: document.getElementById("editCountry").value.trim(),
+            yearFounded: parseInt(document.getElementById("editYear").value),
+            headquarters: document.getElementById("editHQ").value.trim(),
+            website: document.getElementById("editWeb").value.trim(),
+            description: document.getElementById("editDesc").value.trim()
+        };
+        // Validate
+        if (!brandData.name || !brandData.country || !brandData.yearFounded || !brandData.headquarters || !brandData.website || !brandData.description) {
+            showError("Vui lòng điền đầy đủ thông tin!");
+            return;
+        }
+        fetch(`${apiBase}/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(brandData)
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    const text = await response.text();
+                    showError(text || "Có lỗi xảy ra khi cập nhật!");
+                } else {
+                    editingRow = null;
+                    loadBrands();
+                }
+            })
+            .catch(() => {
+                showError("Không kết nối được đến server!");
+            });
+    }
+
+    function saveNewBrand() {
+        const brandData = {
+            name: document.getElementById("editName").value.trim(),
+            country: document.getElementById("editCountry").value.trim(),
+            yearFounded: parseInt(document.getElementById("editYear").value),
+            headquarters: document.getElementById("editHQ").value.trim(),
+            website: document.getElementById("editWeb").value.trim(),
+            description: document.getElementById("editDesc").value.trim()
+        };
+        if (!brandData.name || !brandData.country || !brandData.yearFounded || !brandData.headquarters || !brandData.website || !brandData.description) {
+            showError("Vui lòng điền đầy đủ thông tin!");
+            return;
+        }
+        fetch(apiBase, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(brandData)
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    const text = await response.text();
+                    showError(text || "Có lỗi xảy ra khi thêm mới!");
+                } else {
+                    editingRow = null;
+                    loadBrands();
+                }
+            })
+            .catch(() => {
+                showError("Không kết nối được đến server!");
+            });
+    }
+
+    function addBrandRow() {
+        if (editingRow) return; // Chỉ cho phép 1 dòng sửa hoặc thêm mới
+        editingRow = 'new';
+        loadBrands();
+    }
+
+    function deleteBrand(id) {
+        if (confirm("Bạn chắc chắn muốn xóa brand này?")) {
+            fetch(`${apiBase}/${id}`, {
+                method: "DELETE"
+            }).then(() => loadBrands());
+        }
+    }
+
+    // Khởi động
+    loadBrands();
+</script>
+</body>
+</html>
