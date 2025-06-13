@@ -20,4 +20,6 @@ public interface CarRepo extends JpaRepository<CarEntity, Integer> {
     List<CarEntity> findAllByOwnerId(Integer ownerId);
 
     boolean existsByLicensePlate(String licensePlate);
+
+    boolean existsByLicensePlateAndIdNot(String licensePlate, int id);
 }

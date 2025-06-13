@@ -16,6 +16,6 @@ public class CarDTO {
     private String year;
     private String color;
     private Date purchaseDate;
-    private String OwnerPhone;
+    private String ownerPhone;
     private String brandName;
 }

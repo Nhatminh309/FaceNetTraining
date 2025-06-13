@@ -1,11 +1,11 @@
 package facenet.tranning.project.service;
 
-import facenet.tranning.project.dto.request.CarDTO;
 import facenet.tranning.project.dto.request.CarDTOList;
 import facenet.tranning.project.dto.request.CarRequest;
 import facenet.tranning.project.entity.BrandEntity;
 import facenet.tranning.project.entity.CarEntity;
 import facenet.tranning.project.entity.OwnerEntity;
+import facenet.tranning.project.mapper.CarMapper;
 import facenet.tranning.project.repository.CarRepo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,6 +21,8 @@ public class CarService {
     private BrandService brandService;
     @Autowired
     private OwnerService ownerService;
+    @Autowired
+    CarMapper carMapper;
 
     // Hiển thị tất cả các xe
     public List<CarDTOList> carList(){
@@ -33,27 +35,21 @@ public class CarService {
                 orElseThrow(() -> new RuntimeException("Car not found"));
     }
 
-    // Map carDTO sang carEntity
-    public void mapCarFields(CarEntity carEntity, CarDTO carDTO) {
-        carEntity.setLicensePlate(carDTO.getLicensePlate());
-        carEntity.setModel(carDTO.getModel());
-        carEntity.setYear(carDTO.getYear());
-        carEntity.setColor(carDTO.getColor());
-        carEntity.setPurchaseDate(carDTO.getPurchaseDate());
-    }
 
-    // Map carDTO sang carEntity
-    public void mapCarRequestToCarEntity(CarEntity carEntity, CarRequest carRequest) {
-        mapCarFields(carEntity, carRequest);
+
+    // Map carRequest sang carEntity
+    public CarEntity mapCarRequestToCarEntity(CarRequest carRequest) {
+        return carMapper.mapCarDTOToCarEntity(carRequest);
     }
 
     // Map carDTOList sang carEntity
-    public void mapCarDTOListToCarEntity(CarEntity carEntity, CarDTOList carDTOList) {
+    public CarEntity mapCarDTOListToCarEntity(CarDTOList carDTOList) {
+        CarEntity carEntity = carMapper.mapCarDTOToCarEntity(carDTOList);
         BrandEntity brandEntity = brandService.getBrandByName(carDTOList.getBrandName());
         OwnerEntity ownerEntity = ownerService.findOwnerByPhone(carDTOList.getOwnerPhone());
         carEntity.setOwnerId(ownerEntity.getId());
         carEntity.setBrandId(brandEntity.getId());
-        mapCarFields(carEntity, (CarDTO) carDTOList);
+        return carEntity;
     }
 
     // Tạo mới một car
@@ -80,11 +76,9 @@ public class CarService {
         OwnerEntity ownerEntity = ownerService.findOwnerByPhone(phone);
         BrandEntity brandEntity = brandService.getBrandByName(brandName);
 
-        CarEntity carEntity = new CarEntity();
+        CarEntity carEntity = mapCarRequestToCarEntity(carRequest);
         carEntity.setBrandId(brandEntity.getId());
         carEntity.setOwnerId(ownerEntity.getId());
-
-        mapCarRequestToCarEntity(carEntity, carRequest);
 
         return carRepo.save(carEntity);
     }
@@ -99,13 +93,13 @@ public class CarService {
             throw new RuntimeException("Phone not found in owner");
         }
 
-        // Kiểm tra biển số xe đã tồn tại chưa
-        if(isExistByLicensePlate(licensePlate)){
-            throw new RuntimeException("License plate already exist");
+        // Kiểm tra biển số xe đã tồn tại ngoài xe đang update chưa
+        if(isExistByLicensePlateWithoutCarId(licensePlate, carId)){
+            throw new RuntimeException("License plate already exist in other car");
         }
 
-        CarEntity carEntity = getCarById(carId);
-        mapCarDTOListToCarEntity(carEntity, carDTOList);
+        CarEntity carEntity = mapCarDTOListToCarEntity(carDTOList);
+        carEntity.setId(carId);
         return carRepo.save(carEntity);
     }
 
@@ -118,5 +112,10 @@ public class CarService {
     // Kiểm tra biển số xe đã tồn tại chưa
     public boolean isExistByLicensePlate(String licensePlate) {
         return carRepo.existsByLicensePlate(licensePlate);
+    }
+
+    // Kiểm tra biển số xe đã tồn tại ngoài xe đang update chưa
+    public boolean isExistByLicensePlateWithoutCarId(String licensePlate, int carId) {
+        return carRepo.existsByLicensePlateAndIdNot(licensePlate, carId);
     }
 }
